@@ -255,7 +255,7 @@ def firstPatchSelect(texture,textureMap,targetMap,patchSize):
     a, b = min_index[0:2]
     return texture[a:a + patchSize, b:b + patchSize]
 
-def transfer(texture,target,patchSize,alpha = 0,time = 0,syn_pre = None):
+def transfer(texture,target,patchSize,alpha = 0,time = 0,syn_pre = None,enhanced = False):
     textureMap = cv2.cvtColor(texture, cv2.COLOR_BGR2GRAY)
     targetMap = cv2.cvtColor(target, cv2.COLOR_BGR2GRAY)  # 转为灰度图
 
@@ -285,11 +285,17 @@ def transfer(texture,target,patchSize,alpha = 0,time = 0,syn_pre = None):
             if i == 0 and j == 0:
                 patch = firstPatchSelect(texture, texture, target, patchSize)
             elif time == 0:   # 第一次运行时仅找块，不缝合   TODO:
-                patch = getBestPatch(texture, texture, target, syn, x, y, patchSize, ovSize, alpha)
+                if enhanced:
+                    patch = getBestPatch_enhanced(texture, texture, target, syn, x, y, patchSize, ovSize, alpha)
+                else:
+                    patch = getBestPatch(texture, texture, target, syn, x, y, patchSize, ovSize, alpha)
                 print('mode: 2')
 
             else:  # 第一次之后的迭代，有缝合
-                patch = getBestPatch(texture, texture, target, syn, x, y, patchSize, ovSize, alpha)
+                if enhanced:
+                    patch = getBestPatch_enhanced(texture, texture, target, syn, x, y, patchSize, ovSize, alpha)
+                else:
+                    patch = getBestPatch(texture, texture, target, syn, x, y, patchSize, ovSize, alpha)
                 patch = minCostPatch(patch, patchSize, ovSize, syn, y, x)
                 print('mode: 3')
             print('Patch Size:', patch.shape)
@@ -298,30 +304,38 @@ def transfer(texture,target,patchSize,alpha = 0,time = 0,syn_pre = None):
     return syn
 
 
-def iteration(texture,target,patchSize,N):
+def iteration(texture,target,patchSize,N,outputNum,enhanced = False):
     # texture = np.array(texture)
     # target = np.array(target)
 
     texture = texture.astype(np.float32)
     target = target.astype(np.float32)  # 转为float数据类型方便计算
 
-    syn = transfer(texture, target, patchSize) #只拼接，不缝合
-    cv2.imwrite('../output/transfer5_n0.jpg', syn)
+    syn = transfer(texture, target, patchSize,enhanced=enhanced) #只拼接，不缝合
+    cv2.imwrite('../output/transfer10_n0.jpg', syn)
 
     for i in range(1, N):
         patchSize = math.ceil(patchSize * (1-1/3)**(i-1)) #每次调整块大小
         alpha = 0.8 * (i-1)/(N-1) + 0.1
         print('迭代参数:',i,patchSize,alpha)
-        syn = transfer(texture, target, patchSize, alpha, i, syn) #对前一次处理
-        cv2.imwrite('../output/transfer7_n' + str(i) + '.jpg', syn)
+        syn = transfer(texture, target, patchSize, alpha, i, syn,enhanced=enhanced) #对前一次处理
+        if enhanced:
+            cv2.imwrite('../output/transfer'+str(outputNum)+'_enhanced_n' + str(i) + '.jpg', syn)
+        else:
+            cv2.imwrite('../output/transfer'+str(outputNum)+'_n' + str(i) + '.jpg', syn)
 
     return syn
 
-texture1 = cv2.imread('../src/texture/texture3_resized.jpg') # 读取纹理图
-target1 = cv2.imread('../src/target/target5.jpg') # 读取目标图
-print('shape:', texture1.shape,target1.shape)
-syn1 = iteration(texture1,target1,25, 2)
-cv2.imwrite('../output/transfer7.jpg', syn1)
+
+for i in range(4):
+    texture1 = cv2.imread('../src/texture/text'+str(i+1)+'.jpg') # 读取纹理图
+    target1 = cv2.imread('../src/target/target5.jpg') # 读取目标图
+    print('shape:', texture1.shape,target1.shape)
+    syn1 = iteration(texture1,target1,25,3,i+1,enhanced=False)
+    cv2.imwrite('../output/trans'+str(i+1)+'.jpg', syn1)
+    syn2 = iteration(texture1,target1,25,3,i+1,enhanced=True)
+    cv2.imwrite('../output/trans'+str(i+1)+'enhanced'+'.jpg', syn2)
+
 
 
 
